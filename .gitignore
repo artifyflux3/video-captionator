@@ -4,3 +4,6 @@
 # Ignore Python cache directories
 __pycache__/
 **/__pycache__/
+
+# Ignore font files
+font.otf
