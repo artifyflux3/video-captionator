@@ -1,0 +1,1 @@
+rm -r captions.jsonl && python video_captionator.py

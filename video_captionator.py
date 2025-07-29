@@ -27,14 +27,25 @@ def load_segments(path):
     with path.open("r", encoding="utf-8") as f:
         return [json.loads(line) for line in f]
 
-def make_text_image(text, font, canvas_size, color):
+def make_text_image(text, font, canvas_size, color, outline_enable, outline_color, outline_size):
     w, h = canvas_size
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+
+    # Get text size
     bbox = draw.textbbox((0, 0), text, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = CAPTION_LOCATION_X - tw // 2
     y = CAPTION_LOCATION_Y - th // 2
+
+    if outline_enable:
+        # Draw outline by drawing text multiple times with offset
+        for dx in range(-outline_size, outline_size + 1):
+            for dy in range(-outline_size, outline_size + 1):
+                if dx != 0 or dy != 0:
+                    draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
+
+    # Draw main text on top
     draw.text((x, y), text, font=font, fill=color)
     return img
 
@@ -64,7 +75,10 @@ def main():
         # draw if within current segment
         if idx < len(segments) and segments[idx]['start'] <= t < segments[idx]['end']:
             text = segments[idx]['text']
-            text_img = make_text_image(text, font, canvas_size, TEXT_COLOR_RGB)
+            text_img = make_text_image(
+                text, font, canvas_size, TEXT_COLOR_RGB,
+                TEXT_OUTLINE_ENABLE, TEXT_OUTLINE_COLOR, TEXT_OUTLINE_SIZE
+            )
             # composite PIL over frame
             pil_frame = Image.fromarray(frame)
             pil_frame.paste(text_img, (0, 0), text_img)
@@ -85,16 +99,21 @@ def main():
 # --------------------------------------
 # SETTINGS
 # --------------------------------------
-INPUT_VIDEO_PATH    = Path("input.mp4")
-OUTPUT_VIDEO_PATH   = Path("output.mp4")
-CAPTIONS_JSONL      = Path("captions.jsonl")
-WORD_LIMIT          = 2
-TEXT_COLOR_RGB      = (255, 255, 0)
-FONT_SIZE           = 64
-FONT_FILE           = Path("font.otf")
-CAPTION_LOCATION_X  = 640
-CAPTION_LOCATION_Y  = 360
-WHISPER_MODEL       = "base"
+INPUT_VIDEO_PATH      = Path("input.mp4")
+OUTPUT_VIDEO_PATH     = Path("output.mp4")
+CAPTIONS_JSONL        = Path("captions.jsonl")
+WORD_LIMIT            = 2
+TEXT_COLOR_RGB        = (255, 255, 0)  # Yellow
+FONT_SIZE             = 64
+FONT_FILE             = Path("font.otf")
+CAPTION_LOCATION_X    = 640
+CAPTION_LOCATION_Y    = 360
+WHISPER_MODEL         = "base"
+
+# TEXT OUTLINE FEATURE
+TEXT_OUTLINE_ENABLE   = True
+TEXT_OUTLINE_COLOR    = (0, 0, 0)  # Black
+TEXT_OUTLINE_SIZE     = 3  # pixels
 # --------------------------------------
 
 if __name__ == "__main__":
