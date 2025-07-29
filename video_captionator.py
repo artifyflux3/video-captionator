@@ -62,27 +62,67 @@ def main():
     font = ImageFont.truetype(str(FONT_FILE), FONT_SIZE)
     canvas_size = (video.w, video.h)
 
-    # prepare segment iterator
-    segments = sorted(segments, key=lambda s: s['start'])
-    idx = 0
+    # Apply delay before out to segments
+    adjusted_segments = []
+    for i, seg in enumerate(segments):
+        if i < len(segments) - 1:
+            next_start = segments[i + 1]['start']
+            current_end = seg['end']
+            # Extend the end time by the delay, but not beyond the next segment start
+            extended_end = current_end + DELAY_BEFORE_OUT / 1000.0
+            if extended_end < next_start:
+                seg['end'] = extended_end
+            else:
+                seg['end'] = next_start
+        adjusted_segments.append(seg)
+    
+    segments = adjusted_segments
+
+    # Keep track of current segment and its display state
+    current_segment_idx = 0
+    current_text = ""
+    display_until = -1  # Time until which current text should be displayed
 
     def overlay(get_frame, t):
-        nonlocal idx
+        nonlocal current_segment_idx, current_text, display_until
+        
         frame = get_frame(t)
-        # advance idx if past current segment
-        while idx < len(segments) and t >= segments[idx]['end']:
-            idx += 1
-        # draw if within current segment
-        if idx < len(segments) and segments[idx]['start'] <= t < segments[idx]['end']:
-            text = segments[idx]['text']
+        
+        # Find the appropriate segment to display
+        # First, move past segments that have definitely ended
+        while current_segment_idx < len(segments) and t >= segments[current_segment_idx]['end']:
+            current_segment_idx += 1
+        
+        # Check if we need to update the current text
+        if current_segment_idx < len(segments):
+            segment = segments[current_segment_idx]
+            
+            # If we're within the segment's original time, show it and update display_until
+            if segment['start'] <= t < segment['end']:
+                current_text = segment['text']
+                display_until = segment['end']
+            # If we're past the original end but within the extended time, keep showing the text
+            elif t >= segment['end'] and t < display_until:
+                # Keep showing the current text
+                pass
+            # If we're past the display_until time, clear the text
+            elif t >= display_until:
+                current_text = ""
+        else:
+            # No more segments, clear text
+            current_text = ""
+        
+        # Render text if there's any to show
+        if current_text:
             text_img = make_text_image(
-                text, font, canvas_size, TEXT_COLOR_RGB,
+                current_text, font, canvas_size, TEXT_COLOR_RGB,
                 TEXT_OUTLINE_ENABLE, TEXT_OUTLINE_COLOR, TEXT_OUTLINE_SIZE
             )
             # composite PIL over frame
             pil_frame = Image.fromarray(frame)
             pil_frame.paste(text_img, (0, 0), text_img)
             return np.array(pil_frame)
+        
         return frame
 
     # apply overlay without storing all clips
@@ -114,6 +154,9 @@ WHISPER_MODEL         = "base"
 TEXT_OUTLINE_ENABLE   = True
 TEXT_OUTLINE_COLOR    = (0, 0, 0)  # Black
 TEXT_OUTLINE_SIZE     = 3  # pixels
+
+# DELAY BEFORE OUT FEATURE
+DELAY_BEFORE_OUT      = 1000  # milliseconds
 # --------------------------------------
 
 if __name__ == "__main__":
